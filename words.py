@@ -1,7 +1,7 @@
-#define N_HIDDEN 2315LU
-#define N_TEST 12972LU
+N_HIDDEN = 2315
+N_TEST = 12972
 
-const char hidden_words[N_HIDDEN][6] = {
+hidden_words = [
     "cigar",
     "rebut",
     "sissy",
@@ -2317,9 +2317,9 @@ const char hidden_words[N_HIDDEN][6] = {
     "artsy",
     "rural",
     "shave",
-};
+]
 
-const char test_words[N_TEST][6] = {
+test_words = [
     "cigar",
     "rebut",
     "sissy",
@@ -15292,4 +15292,4 @@ const char test_words[N_TEST][6] = {
     "zygon",
     "zymes",
     "zymic",
-};
+]

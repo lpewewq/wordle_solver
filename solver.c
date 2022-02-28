@@ -5,7 +5,8 @@
 #include <string.h>
 #include <time.h>
 
-#define LOG_DEPTH 1
+
+#define LOG_DEPTH 0
 #define SEARCH_DEPTH 44 // 44 -> salet 7920
 
 const uint8_t POWERS_OF_THREE[6] = {1, 3, 9, 27, 81, 243};
@@ -31,21 +32,26 @@ typedef struct WordleSolverInstance
 typedef struct Branch
 {
     size_t test_index;
+    size_t count;
     size_t sizes[N_BRANCHES];
     size_t starts[N_BRANCHES];
     size_t *hidden_indicies;
 } Branch;
 
-void free_tree(WordleNode *node)
+void free_tree(WordleNode *node, bool free_root)
 {
-    for (size_t j = 0; j < N_BRANCHES - 1; j++)
+    if (node == NULL)
     {
-        if (node->branches[j] != NULL)
-        {
-            free_tree(node->branches[j]);
-        }
+        return;
     }
-    free(node);
+    for (int j = node->num_branches - 1; j >= 0; j--)
+    {
+        free_tree(node->branches + j, j == 0);
+    }
+    if (free_root)
+    {
+        free(node);
+    }
 }
 
 size_t tree_max_depth(WordleNode *node)
@@ -55,9 +61,9 @@ size_t tree_max_depth(WordleNode *node)
         return 0;
     }
     size_t max_depth = 0;
-    for (size_t j = 0; j < N_BRANCHES - 1; j++)
+    for (size_t j = 0; j < node->num_branches; j++)
     {
-        size_t depth = tree_max_depth(node->branches[j]);
+        size_t depth = tree_max_depth(node->branches + j);
         if (depth > max_depth)
         {
             max_depth = depth;
@@ -140,7 +146,7 @@ double entropy(const size_t *branch_sizes, const size_t n_hidden)
     return result / n_hidden;
 }
 
-size_t sort_test_vector(const WordleSolverInstance *solver_instance)
+size_t sort_test_vector(const WordleSolverInstance *solver_instance, size_t *pruned_instance)
 {
     for (size_t i = 0; i < solver_instance->n_test; i++)
     {
@@ -154,6 +160,7 @@ size_t sort_test_vector(const WordleSolverInstance *solver_instance)
         }
         if (prune && branch_sizes[N_BRANCHES - 1] == 1)
         {
+            *pruned_instance = solver_instance->test_vector[i].index;
             return 2 * solver_instance->n_hidden - 1;
         }
         solver_instance->test_vector[i].value = entropy(branch_sizes, solver_instance->n_hidden);
@@ -167,6 +174,7 @@ void create_branches(const WordleSolverInstance *solver_instance, Branch *branch
 {
     size_t test_index = branch->test_index;
     memset(branch->sizes, 0, sizeof branch->sizes);
+    branch->count = 0;
     for (size_t j = 0; j < solver_instance->n_hidden; j++)
     {
         size_t score = solver_instance->score_cache[test_index][solver_instance->hidden_vector[j]];
@@ -185,11 +193,15 @@ void create_branches(const WordleSolverInstance *solver_instance, Branch *branch
     for (size_t j = 0; j < N_BRANCHES; j++)
     {
         branch->starts[j] -= branch->sizes[j];
+        if (branch->sizes[j] > 0 && j != N_BRANCHES - 1) // ignore GGGGG
+        {
+            branch->count++;
+        }
     }
 }
 
-size_t min_try_sum(const WordleSolverInstance *solver_instance, const size_t beta);
-size_t branch_try_sum(const WordleSolverInstance *solver_instance, const Branch *branch, const size_t beta)
+size_t min_try_sum(const WordleSolverInstance *solver_instance, const size_t beta, WordleNode *node);
+size_t branch_try_sum(const WordleSolverInstance *solver_instance, const Branch *branch, const size_t beta, WordleNode *branch_nodes)
 {
     size_t try_sum = 2 * solver_instance->n_hidden - branch->sizes[N_BRANCHES - 1];
     if (try_sum >= beta)
@@ -198,6 +210,7 @@ size_t branch_try_sum(const WordleSolverInstance *solver_instance, const Branch 
     }
 
     size_t progress = solver_instance->n_hidden;
+    size_t branch_count = 0;
     for (size_t j = 0; j < N_BRANCHES - 1; j++) // ignore 242 (GGGGG)
     {
         if (branch->sizes[j] == 0)
@@ -216,8 +229,9 @@ size_t branch_try_sum(const WordleSolverInstance *solver_instance, const Branch 
             .test_vector = solver_instance->test_vector,
             .score_cache = solver_instance->score_cache,
             .depth = solver_instance->depth + 1};
-
-        size_t result = min_try_sum(&sub_instance, beta - try_sum + branch->sizes[j]);
+        (branch_nodes + branch_count)->score = j;
+        size_t result = min_try_sum(&sub_instance, beta - try_sum + branch->sizes[j], branch_nodes + branch_count);
+        branch_count++;
         if (solver_instance->depth < LOG_DEPTH)
         {
             for (size_t i = 0; i < solver_instance->depth; i++)
@@ -243,16 +257,31 @@ size_t branch_try_sum(const WordleSolverInstance *solver_instance, const Branch 
     return try_sum;
 }
 
-size_t min_try_sum(const WordleSolverInstance *solver_instance, size_t beta)
+size_t min_try_sum(const WordleSolverInstance *solver_instance, size_t beta, WordleNode *node)
 {
     size_t n_hidden = solver_instance->n_hidden;
     size_t n_test = solver_instance->n_test;
-    if (n_hidden <= 1)
+    if (n_hidden == 0)
     {
-        return n_hidden;
+        return 0;
+    }
+    if (n_hidden == 1)
+    {
+        node->test_index = solver_instance->hidden_vector[0];
+        node->beta = 1;
+        node->num_branches = 0;
+        return 1;
     }
     if (n_hidden == 2)
     {
+        node->test_index = solver_instance->hidden_vector[0];
+        node->beta = 3;
+        node->num_branches = 1;
+        node->branches = calloc(1, sizeof(WordleNode));
+        node->branches->test_index = solver_instance->hidden_vector[1];
+        node->branches->beta = 1;
+        node->branches->num_branches = 0;
+        node->branches->score = solver_instance->score_cache[node->test_index][node->branches->test_index];
         return 3;
     }
     if (solver_instance->depth > 8)
@@ -265,9 +294,22 @@ size_t min_try_sum(const WordleSolverInstance *solver_instance, size_t beta)
     }
 
     // sort test words by information gain
-    size_t result = sort_test_vector(solver_instance);
+    size_t pruned_instance;
+    size_t result = sort_test_vector(solver_instance, &pruned_instance);
     if (result != 0)
     {
+        node->test_index = pruned_instance;
+        node->beta = result;
+        node->num_branches = n_hidden - (size_t)(pruned_instance < n_test);
+        node->branches = calloc(node->num_branches, sizeof(WordleNode));
+        for (size_t i = 0; i < node->num_branches; i++)
+        {
+            size_t pruned_shift = solver_instance->hidden_vector[i] >= pruned_instance;
+            (node->branches + i)->test_index = solver_instance->hidden_vector[i + pruned_shift];
+            (node->branches + i)->beta = 1;
+            (node->branches + i)->num_branches = 0;
+            (node->branches + i)->score = solver_instance->score_cache[node->test_index][(node->branches + i)->test_index];
+        }
         return result;
     }
 
@@ -281,16 +323,16 @@ size_t min_try_sum(const WordleSolverInstance *solver_instance, size_t beta)
     Branch branch = {
         .hidden_indicies = hidden_indicies,
     };
-    for (size_t i = 0; i < SEARCH_DEPTH; i++)
+    for (size_t i = 0; i < n_test && i < SEARCH_DEPTH; i++)
     {
-        if (solver_instance->depth == 0)
-        {
-            branch.test_index = test_ordering[7];
-        }
-        else
-        {
-            branch.test_index = test_ordering[i];
-        }
+        // if (solver_instance->depth == 0)
+        // {
+        //     branch.test_index = test_ordering[7];
+        // }
+        // else
+        // {
+        branch.test_index = test_ordering[i];
+        // }
         if (solver_instance->depth < LOG_DEPTH)
         {
             printf("\n");
@@ -301,8 +343,9 @@ size_t min_try_sum(const WordleSolverInstance *solver_instance, size_t beta)
             printf("testing %s (%lu) - %f%%\n", solver_instance->wordle_instance->test_words[branch.test_index], solver_instance->n_hidden, (100.0 * (1 + i)) / SEARCH_DEPTH);
         }
         create_branches(solver_instance, &branch);
-        size_t try_sum = branch_try_sum(solver_instance, &branch, beta);
-        if (beta > try_sum)
+        WordleNode *branch_nodes = calloc(branch.count, sizeof(WordleNode));
+        size_t test_beta = branch_try_sum(solver_instance, &branch, beta, branch_nodes);
+        if (beta > test_beta)
         {
             if (solver_instance->depth < LOG_DEPTH)
             {
@@ -310,14 +353,26 @@ size_t min_try_sum(const WordleSolverInstance *solver_instance, size_t beta)
                 {
                     printf("- ");
                 }
-                printf("improved try sum: %lu -> %lu\n", beta, try_sum);
+                printf("improved beta: %lu -> %lu\n", beta, test_beta);
             }
-            beta = try_sum;
+            beta = test_beta;
+            node->test_index = branch.test_index;
+            node->beta = test_beta;
+            free_tree(node, false);
+            node->num_branches = branch.count;
+            node->branches = branch_nodes;
         }
-        if (solver_instance->depth == 0)
+        else
         {
-            break;
+            for (int j = branch.count - 1; j >= 0; j--)
+            {
+                free_tree(branch_nodes + j, j == 0);
+            }
         }
+        // if (solver_instance->depth == 0)
+        // {
+        //     break;
+        // }
     }
     return beta;
 }
@@ -373,9 +428,13 @@ bool solve(const WordleInstance *wordle_instance, WordleSolverResult *result)
         .depth = 0,
     };
 
-    size_t beta = 7921;
+    if (wordle_instance->n_hidden > 0)
+    {
+        result->decision_tree = calloc(1, sizeof(WordleNode));
+    }
+    size_t beta = UINTMAX_MAX;
     clock_t start = clock();
-    result->total = min_try_sum(&solver_instance, beta);
+    result->total = min_try_sum(&solver_instance, beta, result->decision_tree);
     result->duration = (float)(clock() - start) / CLOCKS_PER_SEC;
     result->average = (float)result->total / wordle_instance->n_hidden;
 

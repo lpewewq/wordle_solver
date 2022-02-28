@@ -1,9 +1,27 @@
 CC = gcc
-CFLAGS = -O3 # -fdiagnostics-color=always -g
+CFLAGS = -Wall
+DEBUG = -fdiagnostics-color=always -g
+RELEASE = -O3
+LDFLAGS = -lm
+SOURCES = main.c solver.c
+OBJECTS = $(SOURCES:.c=.o)
+DEBUG_OBJECTS = $(addprefix debug_, $(OBJECTS))
 
-main: main.o solver.o
-	$(CC) solver.o main.o -lm -o main
+all: debug release
+
+release: $(OBJECTS)
+	$(CC) $(OBJECTS) $(LDFLAGS) -o $@
+
+debug: $(DEBUG_OBJECTS)
+	$(CC) $(DEBUG_OBJECTS) $(LDFLAGS) -o $@
+
+debug_%.o: %.c
+	$(CC) $(CFLAGS) $(DEBUG) -c $< -o $@
+
+%.o: %.c
+	$(CC) $(CFLAGS) $(RELEASE) -c $< -o $@
 
 clean:
-	rm -f main
-	rm -f *.o
+	rm -f release debug *.o
+
+.PHONY: clean all

@@ -12,21 +12,24 @@ typedef struct WordleInstance
     const char (*test_words)[6];
 } WordleInstance;
 
+typedef struct WordleNode
+{
+    size_t test_index;
+    size_t beta;
+    uint8_t score;
+    size_t num_branches;
+    struct WordleNode *branches;
+} WordleNode;
+
 typedef struct WordleSolverResult
 {
     float duration;
     size_t total;
     float average;
+    WordleNode *decision_tree;
 } WordleSolverResult;
 
-typedef struct WordleNode
-{
-    size_t test_index;
-    size_t beta;
-    struct WordleNode *branches[N_BRANCHES - 1];
-} WordleNode;
-
-void free_tree(WordleNode *node);
+void free_tree(WordleNode *node, bool free_root);
 
 size_t tree_max_depth(WordleNode *node);
 
