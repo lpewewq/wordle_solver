@@ -3,6 +3,8 @@ import os
 import json
 import words
 
+INF = 18446744073709551615
+
 
 def score_to_string(score: int) -> str:
     """ 3 base encoded score to string """
@@ -45,21 +47,22 @@ class DecisionTreeValidator:
         n_test = len(self.test_words)
         print(f"test n_hidden={n_hidden} n_test={n_test}")
 
-        code = os.system(f"./release {n_hidden} {n_test}")
+        result_file = f"result_{n_hidden}_{n_test}.json"
+        code = os.system(f"./release {n_hidden} {n_test} {result_file}")
         assert code == 0, f"Solver return code {code}"
 
-        with open("result.json", "r") as f:
+        with open(result_file, "r") as f:
             self.result = json.load(f)
         assert self.result["n_hidden"] == n_hidden
         assert self.result["n_test"] == n_test
 
-        self.validate_node(self.result["decision_tree"])
+        self.validate_node(self.result, 0)
         total = 0
         for hidden_word in self.hidden_words:
-            total += self.play(hidden_word, self.result["decision_tree"])
+            total += self.play(hidden_word, self.result)
         assert total == self.result["total"]
         if n_hidden > 0:
-            assert (total / n_hidden - self.result["average"]) <= 1e-4
+            assert (total / n_hidden - self.result["average_case"]) <= 1e-4
 
         key = f"{n_hidden:0>5}, {n_test:0>5}"
         with open("expected_results.json", "r") as f:
@@ -76,31 +79,52 @@ class DecisionTreeValidator:
         if guess == hidden_word:
             return 1
         key = score_to_string(score(guess, hidden_word))
+        assert node["branches"] is not None
         assert key in node["branches"]
         return 1 + self.play(hidden_word, node["branches"][key])
 
-    def validate_node(self, node):
-        if node is None:
-            return
+    def validate_node(self, node, depth):
+        assert node is not None
+        n_hidden = node["n_hidden"]
         guess = node["guess"]
-        beta = node["beta"]
+        total = node["total"]
         branches = node["branches"]
-        max_depth = node["max_depth"]
+        worst_case = node["worst_case"]
+        best_case = node["best_case"]
+        average_case = node["average_case"]
 
-        assert beta > 0
+        if n_hidden == 0:
+            assert depth == 0
+            assert total == 0
+            assert guess is None
+            assert branches is None
+            assert worst_case == 0
+            assert best_case >= INF
+            assert average_case >= INF
+            return
+
+        assert total > 0
+        assert guess is not None
         assert guess in self.test_words
+
         if branches is None:
             assert guess in self.hidden_words
-            assert beta == 1
-            assert max_depth == 1
-            return 1
+            assert total == 1
+            assert worst_case == 1
+            assert best_case == 1
+            assert average_case == 1
+            return
 
-        sub_max_depth = 0
+        sub_worst_case = 0
+        sub_best_case = 1 if guess in self.hidden_words else INF
         for key, item in branches.items():
             assert key not in ["🟨🟩🟩🟩🟩", "🟩🟨🟩🟩🟩", "🟩🟩🟨🟩🟩", "🟩🟩🟩🟨🟩", "🟩🟩🟩🟩🟨", "🟩🟩🟩🟩🟩"]
-            self.validate_node(item)
-            sub_max_depth = max(sub_max_depth, item["max_depth"])
-        assert max_depth == 1 + sub_max_depth
+            self.validate_node(item, depth + 1)
+            sub_worst_case = max(sub_worst_case, 1 + item["worst_case"])
+            sub_best_case = min(sub_best_case, 1 + item["best_case"])
+        assert worst_case == sub_worst_case
+        assert best_case == sub_best_case
+        assert best_case <= average_case <= worst_case
 
 
 def test(n_hidden, n_test):

@@ -1,3 +1,5 @@
+#pragma once
+
 #define N_HIDDEN 2315LU
 #define N_TEST 12972LU
 
