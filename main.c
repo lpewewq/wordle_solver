@@ -45,10 +45,10 @@ size_t save_node(FILE *fp, const WordleInstance *wordle_instance, const WordleNo
     fprintf(fp, "}\n");
     return 1 + max_depth;
 }
-void save_result(const WordleInstance *wordle_instance, const WordleSolverResult *result)
+void save_result(const char *file_name, const WordleInstance *wordle_instance, const WordleSolverResult *result)
 {
     FILE *fp;
-    fp = fopen("result.json", "w");
+    fp = fopen(file_name, "w");
     if (fp == NULL)
     {
         printf("Could not open file!");
@@ -71,6 +71,7 @@ int main(int argc, char *argv[])
 {
     size_t n_hidden = N_HIDDEN;
     size_t n_test = N_TEST;
+    char *file_name = "result.json";
     if (argc > 1)
     {
         n_hidden = strtol(argv[1], NULL, 0);
@@ -78,6 +79,10 @@ int main(int argc, char *argv[])
     if (argc > 2)
     {
         n_test = strtol(argv[2], NULL, 0);
+    }
+    if (argc > 3)
+    {
+        file_name = argv[3];
     }
     WordleInstance wordle_instance = {
         .n_hidden = n_hidden,
@@ -87,7 +92,7 @@ int main(int argc, char *argv[])
     };
     WordleSolverResult result = {0};
     solve(&wordle_instance, &result);
-    save_result(&wordle_instance, &result);
+    save_result(file_name, &wordle_instance, &result);
     free_tree(result.decision_tree, true);
     return 0;
 }

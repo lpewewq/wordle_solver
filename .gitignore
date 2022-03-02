@@ -3,5 +3,5 @@ __pycache__
 *.o
 debug
 release
-result.json
-salet.txt
+results
+result*.json

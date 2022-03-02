@@ -114,7 +114,7 @@ def test(n_hidden, n_test):
 
 
 if __name__ == "__main__":
-    n_hidden = 50
+    n_hidden = words.N_HIDDEN
     n_test = words.N_TEST
     if len(sys.argv) > 1:
         n_hidden = int(sys.argv[1])
@@ -123,6 +123,4 @@ if __name__ == "__main__":
 
     code = os.system(f"make clean && make release")
     assert code == 0
-    for i in range(n_hidden + 1):
-        test(i, i)
-        test(i, n_test)
+    test(n_hidden, n_test)
