@@ -3,7 +3,8 @@
 #include <time.h>
 
 #define LOG_DEPTH 0
-#define SEARCH_DEPTH 44 // 44 -> salet 7920 TODO dynamic search depth
+#define SEARCH_DEPTH 44 // 44 & 0.945 -> salet in 7920 total
+#define SEARCH_ENTROPY_DEPTH 0.945
 #define PADDING(depth)                     \
     {                                      \
         for (size_t i = 0; i < depth; i++) \
@@ -159,26 +160,21 @@ WordleNode *_optimize(const WordleSolverInstance *solver_instance, size_t beta)
     else
     {
         // copy result as recursive calls change the ordering
-        size_t test_ordering[SEARCH_DEPTH];
+        tuple test_ordering[SEARCH_DEPTH];
         for (size_t i = 0; i < SEARCH_DEPTH; i++)
         {
-            test_ordering[i] = solver_instance->test_vector[i].index;
+            test_ordering[i].index = solver_instance->test_vector[i].index;
+            test_ordering[i].value = solver_instance->test_vector[i].value;
         }
+        double min_entropy = SEARCH_ENTROPY_DEPTH * test_ordering[0].value;
         for (size_t i = 0; i < n_test && i < SEARCH_DEPTH; i++)
         {
-            // if (solver_instance->depth == 0)
-            // {
-            //     branch.test_index = test_ordering[7];
-            // }
-            // else
-            // {
-            branch.test_index = test_ordering[i];
-            // }
+            if (test_ordering[i].value < min_entropy)
+            {
+                break;
+            }
+            branch.test_index = test_ordering[i].index;
             beta = optimize_beta(solver_instance, &branch, node, (1.0 + i) / SEARCH_DEPTH, beta);
-            // if (solver_instance->depth == 0)
-            // {
-            //     break;
-            // }
         }
     }
 
