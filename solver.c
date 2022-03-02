@@ -28,7 +28,7 @@ size_t sum_branch_total(const WordleSolverInstance *solver_instance, Branch *bra
     qsort(branch->sizes, N_BRANCHES, sizeof(tuple), compare_tuples);
 
     size_t progress = solver_instance->n_hidden;
-    for (size_t i = branch->count; i-- > 0;)
+    for (size_t i = branch->count; (total < beta) && (i-- > 0);)
     {
         size_t score = branch->sizes[i].index;
         size_t size = branch->sizes[i].value;
@@ -36,7 +36,8 @@ size_t sum_branch_total(const WordleSolverInstance *solver_instance, Branch *bra
 
         if (size == solver_instance->n_hidden)
         {
-            return UINTMAX_MAX;
+            total = UINTMAX_MAX;
+            break;
         }
 
         WordleSolverInstance sub_instance = {
@@ -47,9 +48,15 @@ size_t sum_branch_total(const WordleSolverInstance *solver_instance, Branch *bra
             .test_vector = solver_instance->test_vector,
             .score_cache = solver_instance->score_cache,
             .depth = solver_instance->depth + 1};
-        branch_nodes[i].node = optimize(&sub_instance, beta - total + size);
+        WordleNode *node = optimize(&sub_instance, beta - total + size);
+        if (node == NULL)
+        {
+            total = UINTMAX_MAX;
+            break;
+        }
+
+        branch_nodes[i].node = node;
         branch_nodes[i].score = score;
-        size_t branch_total = branch_nodes[i].node->total;
 
         if (solver_instance->depth < LOG_DEPTH)
         {
@@ -57,20 +64,10 @@ size_t sum_branch_total(const WordleSolverInstance *solver_instance, Branch *bra
             char decoded[25];
             descore(score, decoded);
             progress -= size;
-            printf("%s - %f%% (%lu + %lu - %lu / %lu)\n", decoded, (100.0 * progress) / solver_instance->n_hidden, total, branch_total, size, beta);
+            printf("%s - %f%% (%lu + %lu - %lu / %lu)\n", decoded, (100.0 * progress) / solver_instance->n_hidden, total, branch_nodes[i].node->total, size, beta);
         }
 
-        if (branch_total == UINTMAX_MAX) // prevent overflow
-        {
-            total = UINTMAX_MAX;
-            break;
-        }
-
-        total += branch_total - size;
-        if (total >= beta)
-        {
-            break;
-        }
+        total += branch_nodes[i].node->total - size;
     }
     return total;
 }
@@ -138,7 +135,8 @@ WordleNode *_optimize(const WordleSolverInstance *solver_instance, size_t beta)
     if (solver_instance->depth >= 10 || beta <= (2 * n_hidden - 1))
     {
         // max recursion depth or beta too small (smallest tree needs at least 2n-1 total tries)
-        return node;
+        free(node);
+        return NULL;
     }
 
     if (n_hidden == 2)
@@ -184,6 +182,11 @@ WordleNode *_optimize(const WordleSolverInstance *solver_instance, size_t beta)
         }
     }
 
+    if (node->total == UINTMAX_MAX)
+    {
+        free(node);
+        return NULL;
+    }
     return node;
 }
 
@@ -192,12 +195,12 @@ WordleNode *optimize(const WordleSolverInstance *solver_instance, size_t beta)
     clock_t start = clock();
     WordleNode *node = _optimize(solver_instance, beta);
 
-    // save stats
-    node->duration = (float)(clock() - start) / CLOCKS_PER_SEC;
-    node->n_hidden = solver_instance->n_hidden;
-    node->n_test = solver_instance->n_test;
-    if (node->total != UINTMAX_MAX)
+    if (node != NULL)
     {
+        // save stats
+        node->duration = (float)(clock() - start) / CLOCKS_PER_SEC;
+        node->n_hidden = solver_instance->n_hidden;
+        node->n_test = solver_instance->n_test;
         node->average_case = (float)node->total / node->n_hidden;
         if (node->num_branches == 0 && node->n_hidden > 0)
         {
