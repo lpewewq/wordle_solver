@@ -2,7 +2,7 @@ CC = gcc
 CFLAGS = -Wall
 DEBUG = -fdiagnostics-color=always -g
 RELEASE = -O3
-LDFLAGS = -lm
+LDFLAGS = -lm -lhashmap
 SOURCES = main.c solver.c solver_utility.c wordle.c
 OBJECTS = $(SOURCES:.c=.o)
 DEBUG_OBJECTS = $(addprefix debug_, $(OBJECTS))

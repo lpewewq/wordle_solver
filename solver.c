@@ -3,7 +3,7 @@
 #include <time.h>
 
 #define LOG_DEPTH 0
-#define SEARCH_DEPTH 44 // 44 -> salet 7920
+#define SEARCH_DEPTH 44 // 44 -> salet 7920 TODO dynamic search depth
 #define PADDING(depth)                     \
     {                                      \
         for (size_t i = 0; i < depth; i++) \
@@ -14,7 +14,7 @@
 
 WordleNode *optimize(const WordleSolverInstance *solver_instance, size_t beta);
 
-size_t sum_branch_total(const WordleSolverInstance *solver_instance, Branch *branch, const size_t beta, WordleNode **branch_nodes)
+size_t sum_branch_total(const WordleSolverInstance *solver_instance, Branch *branch, const size_t beta, WordleBranch *branch_nodes)
 {
     size_t total = 2 * solver_instance->n_hidden - branch->sizes[N_BRANCHES - 1].value;
 
@@ -47,9 +47,9 @@ size_t sum_branch_total(const WordleSolverInstance *solver_instance, Branch *bra
             .test_vector = solver_instance->test_vector,
             .score_cache = solver_instance->score_cache,
             .depth = solver_instance->depth + 1};
-        branch_nodes[i] = optimize(&sub_instance, beta - total + size);
-        branch_nodes[i]->score = score;
-        size_t branch_total = branch_nodes[i]->total;
+        branch_nodes[i].node = optimize(&sub_instance, beta - total + size);
+        branch_nodes[i].score = score;
+        size_t branch_total = branch_nodes[i].node->total;
 
         if (solver_instance->depth < LOG_DEPTH)
         {
@@ -85,7 +85,7 @@ size_t optimize_beta(const WordleSolverInstance *solver_instance, Branch *branch
     }
 
     create_branches(solver_instance, branch);
-    WordleNode **branch_nodes = calloc(branch->count, sizeof(*branch_nodes));
+    WordleBranch *branch_nodes = calloc(branch->count, sizeof(*branch_nodes));
     size_t total = sum_branch_total(solver_instance, branch, beta, branch_nodes);
 
     if (beta > total)
@@ -211,12 +211,12 @@ WordleNode *optimize(const WordleSolverInstance *solver_instance, size_t beta)
             node->worst_case = 0;
             for (size_t i = 0; i < node->num_branches; i++)
             {
-                size_t wc = 1 + node->branches[i]->worst_case;
+                size_t wc = 1 + node->branches[i].node->worst_case;
                 if (wc > node->worst_case)
                 {
                     node->worst_case = wc;
                 }
-                size_t bc = 1 + node->branches[i]->best_case;
+                size_t bc = 1 + node->branches[i].node->best_case;
                 if (bc < node->best_case)
                 {
                     node->best_case = bc;

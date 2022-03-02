@@ -3,7 +3,7 @@
 #include <math.h>
 #include <stdio.h>
 
-void save_node(FILE *fp, const WordleInstance *wordle_instance, const WordleNode *node, const size_t depth)
+void save_node(FILE *fp, const WordleInstance *wordle_instance, const WordleNode *node)
 {
     if (node == NULL)
     {
@@ -32,10 +32,10 @@ void save_node(FILE *fp, const WordleInstance *wordle_instance, const WordleNode
         for (size_t i = 0; i < node->num_branches;)
         {
             char buffer[25];
-            descore(node->branches[i]->score, buffer);
+            descore(node->branches[i].score, buffer);
             fprintf(fp, "\"%s\":\n", buffer);
 
-            save_node(fp, wordle_instance, node->branches[i], depth + 1);
+            save_node(fp, wordle_instance, node->branches[i].node);
             i++;
             if (i != node->num_branches)
             {
@@ -61,15 +61,7 @@ void save_decision_tree(const char *file_name, const WordleInstance *wordle_inst
         exit(-1);
         return;
     }
-    // fprintf(fp, "{\n");
-    // fprintf(fp, "\"n_hidden\": %lu,\n", wordle_instance->n_hidden);
-    // fprintf(fp, "\"n_test\": %lu,\n", wordle_instance->n_test);
-    // fprintf(fp, "\"duration\":%f,\n", decision_tree->duration);
-    // fprintf(fp, "\"total\": %lu,\n", decision_tree->total);
-    // fprintf(fp, "\"average\": %f,\n", isnan(decision_tree->average) ? 0.0 : decision_tree->average);
-    // fprintf(fp, "\"decision_tree\":\n");
-    // fprintf(fp, "}\n");
-    save_node(fp, wordle_instance, decision_tree, 0);
+    save_node(fp, wordle_instance, decision_tree);
     fclose(fp);
 }
 
@@ -98,6 +90,5 @@ int main(int argc, char *argv[])
     };
     WordleNode *decision_tree = optimize_decision_tree(&wordle_instance);
     save_decision_tree(file_name, &wordle_instance, decision_tree);
-    // free_tree(result.decision_tree, true); // TODO
     return 0;
 }

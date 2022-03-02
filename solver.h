@@ -3,13 +3,17 @@
 #include "solver_utility.h"
 #include "wordle.h"
 
+typedef struct WordleBranch
+{
+    uint8_t score;
+    struct WordleNode *node;
+} WordleBranch;
+
 typedef struct WordleNode
 {
     size_t test_index;
-    uint8_t score; // irrelevant for root node
     size_t num_branches;
-    struct WordleNode **branches;
-
+    struct WordleBranch *branches;
     // stats
     float duration;
     size_t n_hidden;
