@@ -39,51 +39,30 @@ def score(test_word: str, hidden_word: str) -> int:
     return result
 
 
-class DecisionTreeValidator:
-    def __init__(self, hidden_words, test_words) -> None:
-        self.hidden_words = hidden_words
-        self.test_words = test_words
-        n_hidden = len(self.hidden_words)
-        n_test = len(self.test_words)
-        print(f"test n_hidden={n_hidden} n_test={n_test}")
+def test(n_hidden, n_test):
+    assert 0 <= n_hidden <= words.N_HIDDEN
+    assert 0 <= n_test <= words.N_TEST
+    assert n_hidden <= n_test
 
-        result_file = f"result_{n_hidden}_{n_test}.json"
-        code = os.system(f"./release {n_hidden} {n_test} {result_file}")
-        assert code == 0, f"Solver return code {code}"
+    hidden_words = words.hidden_words[:n_hidden]
+    test_words = words.test_words[:n_test]
 
-        with open(result_file, "r") as f:
-            self.result = json.load(f)
-        assert self.result["n_hidden"] == n_hidden
-        assert self.result["n_test"] == n_test
+    hidden_words = hidden_words
+    test_words = test_words
+    n_hidden = len(hidden_words)
+    n_test = len(test_words)
+    print(f"test n_hidden={n_hidden} n_test={n_test}")
 
-        self.validate_node(self.result, 0)
-        total = 0
-        for hidden_word in self.hidden_words:
-            total += self.play(hidden_word, self.result)
-        assert total == self.result["total"]
-        if n_hidden > 0:
-            assert (total / n_hidden - self.result["average_case"]) <= 1e-4
+    result_file = f"result_{n_hidden}_{n_test}.json"
+    code = os.system(f"./release {n_hidden} {n_test} {result_file}")
+    assert code == 0, f"Solver return code {code}"
 
-        key = f"{n_hidden:0>5}, {n_test:0>5}"
-        with open("expected_results.json", "r") as f:
-            expected_results = json.load(f)
-        if key in expected_results:
-            assert expected_results[key] == self.result["total"]
-        else:
-            expected_results[key] = self.result["total"]
-            with open("expected_results.json", "w") as f:
-                json.dump(expected_results, f, indent=4, sort_keys=True)
+    with open(result_file, "r") as f:
+        result = json.load(f)
+    assert result["n_hidden"] == n_hidden
+    assert result["n_test"] == n_test
 
-    def play(self, hidden_word, node):
-        guess = node["guess"]
-        if guess == hidden_word:
-            return 1
-        key = score_to_string(score(guess, hidden_word))
-        assert node["branches"] is not None
-        assert key in node["branches"]
-        return 1 + self.play(hidden_word, node["branches"][key])
-
-    def validate_node(self, node, depth):
+    def validate_node(node, depth):
         assert node is not None
         n_hidden = node["n_hidden"]
         guess = node["guess"]
@@ -105,10 +84,10 @@ class DecisionTreeValidator:
 
         assert total > 0
         assert guess is not None
-        assert guess in self.test_words
+        assert guess in test_words
 
         if branches is None:
-            assert guess in self.hidden_words
+            assert guess in hidden_words
             assert total == 1
             assert worst_case == 1
             assert best_case == 1
@@ -116,25 +95,40 @@ class DecisionTreeValidator:
             return
 
         sub_worst_case = 0
-        sub_best_case = 1 if guess in self.hidden_words else INF
+        sub_best_case = 1 if guess in hidden_words else INF
         for key, item in branches.items():
             assert key not in ["🟨🟩🟩🟩🟩", "🟩🟨🟩🟩🟩", "🟩🟩🟨🟩🟩", "🟩🟩🟩🟨🟩", "🟩🟩🟩🟩🟨", "🟩🟩🟩🟩🟩"]
-            self.validate_node(item, depth + 1)
+            validate_node(item, depth + 1)
             sub_worst_case = max(sub_worst_case, 1 + item["worst_case"])
             sub_best_case = min(sub_best_case, 1 + item["best_case"])
         assert worst_case == sub_worst_case
         assert best_case == sub_best_case
         assert best_case <= average_case <= worst_case
 
+    validate_node(result, 0)
 
-def test(n_hidden, n_test):
-    assert 0 <= n_hidden <= words.N_HIDDEN
-    assert 0 <= n_test <= words.N_TEST
-    assert n_hidden <= n_test
+    def play(hidden_word, node):
+        guess = node["guess"]
+        if guess == hidden_word:
+            return 1
+        key = score_to_string(score(guess, hidden_word))
+        assert node["branches"] is not None
+        assert key in node["branches"]
+        return 1 + play(hidden_word, node["branches"][key])
 
-    hidden_words = words.hidden_words[:n_hidden]
-    test_words = words.test_words[:n_test]
-    DecisionTreeValidator(hidden_words, test_words)
+    total = 0
+    for hidden_word in hidden_words:
+        total += play(hidden_word, result)
+    assert total == result["total"]
+    if n_hidden > 0:
+        assert (total / n_hidden - result["average_case"]) <= 1e-4
+
+    key = f"{n_hidden:0>5}, {n_test:0>5}"
+    with open("expected_results.json", "r") as f:
+        expected_results = json.load(f)
+    if key in expected_results:
+        assert expected_results[key] == result["total"]
+    return key, result["total"]
 
 
 if __name__ == "__main__":
@@ -147,4 +141,10 @@ if __name__ == "__main__":
 
     code = os.system(f"make clean && make release")
     assert code == 0
-    test(n_hidden, n_test)
+    key, total = test(n_hidden, n_test)
+
+    with open("expected_results.json", "r") as f:
+        expected_results = json.load(f)
+    expected_results[key] = total
+    with open("expected_results.json", "w") as f:
+        json.dump(expected_results, f, indent=4, sort_keys=True)

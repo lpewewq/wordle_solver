@@ -3,7 +3,7 @@ CFLAGS = -Wall
 DEBUG = -fdiagnostics-color=always -g
 RELEASE = -O3
 LDFLAGS = -lm -lhashmap
-SOURCES = main.c solver.c solver_utility.c wordle.c
+SOURCES = main.c solver.c solver_utility.c solver_hashmap.c wordle.c result.c
 OBJECTS = $(SOURCES:.c=.o)
 DEBUG_OBJECTS = $(addprefix debug_, $(OBJECTS))
 

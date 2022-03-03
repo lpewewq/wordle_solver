@@ -1,10 +1,12 @@
 #include "solver.h"
+#include "result.h"
+#include "solver_hashmap.h"
 #include <stdio.h>
 #include <time.h>
 
 #define LOG_DEPTH 0
-#define SEARCH_DEPTH 44 // 44 & 0.945 -> salet in 7920 total
-#define SEARCH_ENTROPY_DEPTH 0.945
+#define SEARCH_DEPTH 44 // 44 & 0.946 -> salet in 7920 total
+#define SEARCH_ENTROPY_DEPTH 0.946
 #define PADDING(depth)                     \
     {                                      \
         for (size_t i = 0; i < depth; i++) \
@@ -188,8 +190,18 @@ WordleNode *_optimize(const WordleSolverInstance *solver_instance, size_t beta)
 
 WordleNode *optimize(const WordleSolverInstance *solver_instance, size_t beta)
 {
+    WordleNode *node;
+
+    hasmap_key_t *key = get_key(solver_instance);
+
+    node = solver_hashmap_get(key);
+    if (node != NULL)
+    {
+        return node;
+    }
+
     clock_t start = clock();
-    WordleNode *node = _optimize(solver_instance, beta);
+    node = _optimize(solver_instance, beta);
 
     if (node != NULL)
     {
@@ -222,11 +234,17 @@ WordleNode *optimize(const WordleSolverInstance *solver_instance, size_t beta)
                 }
             }
         }
+        node->key = key;
+        solver_hashmap_put(key, node);
+    }
+    else
+    {
+        free(key);
     }
     return node;
 }
 
-WordleNode *optimize_decision_tree(const WordleInstance *wordle_instance)
+void optimize_decision_tree(const WordleInstance *wordle_instance, char *file_name)
 {
     // initialize hidden vector indices
     size_t hidden_vector[wordle_instance->n_hidden];
@@ -249,7 +267,9 @@ WordleNode *optimize_decision_tree(const WordleInstance *wordle_instance)
         .score_cache = (const uint8_t **)populate_score_cache(wordle_instance),
         .depth = 0,
     };
+    solver_hashmap_init();
     WordleNode *decision_tree = optimize(&solver_instance, UINTMAX_MAX);
+    save_node(file_name, wordle_instance, decision_tree);
+    solver_hashmap_cleanup();
     free(solver_instance.score_cache);
-    return decision_tree;
 }
