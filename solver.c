@@ -17,6 +17,75 @@
 
 WordleNode *optimize(const WordleSolverInstance *solver_instance, size_t beta);
 
+size_t filter_test_words(const WordleSolverInstance *solver_instance, const size_t test_index, const uint8_t score)
+{
+
+    size_t n_test = 0;
+    const char *test_word = solver_instance->wordle_instance->test_words[test_index];
+    char exact_chars[5] = {0};
+    char included_chars[5] = {0};
+    uint8_t tmp_score = score;
+    for (size_t i = 0; i < 5; i++)
+    {
+        if (tmp_score % 3 != 0)
+        {
+            included_chars[i] = test_word[i];
+        }
+        if (tmp_score % 3 == 2)
+        {
+            exact_chars[i] = test_word[i];
+        }
+        tmp_score /= 3;
+    }
+    // assign every valid test word value one, zero otherwise
+    for (size_t i = 0; i < solver_instance->n_test; i++)
+    {
+        char test_included_chars[5];
+        for (size_t j = 0; j < 5; j++)
+        {
+            test_included_chars[j] = included_chars[j];
+        }
+        test_word = solver_instance->wordle_instance->test_words[solver_instance->test_vector[i].index];
+        bool valid = true;
+        for (size_t j = 0; j < 5; j++)
+        {
+            if (exact_chars[j] != 0 && exact_chars[j] != test_word[j])
+            {
+                valid = false;
+                break;
+            }
+            for (size_t k = 0; k < 5; k++)
+            {
+
+                if (test_included_chars[k] != 0 && test_included_chars[k] == test_word[j])
+                {
+                    test_included_chars[k] = 0;
+                    break;
+                }
+            }
+        }
+        for (size_t j = 0; j < 5; j++)
+        {
+            if (test_included_chars[j] != 0)
+            {
+                valid = false;
+                break;
+            }
+        }
+        if (valid)
+        {
+            n_test++;
+            solver_instance->test_vector[i].value = 1;
+        }
+        else
+        {
+            solver_instance->test_vector[i].value = 0;
+        }
+    }
+    qsort(solver_instance->test_vector, solver_instance->n_test, sizeof(tuple), compare_tuples);
+    return n_test;
+}
+
 size_t sum_branch_total(const WordleSolverInstance *solver_instance, Branch *branch, const size_t beta, WordleBranch *branch_nodes)
 {
     size_t total = 2 * solver_instance->n_hidden - branch->sizes[N_BRANCHES - 1].value;
@@ -43,11 +112,18 @@ size_t sum_branch_total(const WordleSolverInstance *solver_instance, Branch *bra
             break;
         }
 
+        size_t n_test = solver_instance->n_test;
+
+        if (solver_instance->wordle_instance->hard_mode)
+        {
+            n_test = filter_test_words(solver_instance, branch->test_index, score);
+        }
+
         WordleSolverInstance sub_instance = {
             .wordle_instance = solver_instance->wordle_instance,
             .n_hidden = size,
             .hidden_vector = branch->hidden_indicies + start,
-            .n_test = solver_instance->n_test,
+            .n_test = n_test,
             .test_vector = solver_instance->test_vector,
             .score_cache = solver_instance->score_cache,
             .depth = solver_instance->depth + 1};
@@ -67,7 +143,7 @@ size_t sum_branch_total(const WordleSolverInstance *solver_instance, Branch *bra
             char decoded[25];
             descore(score, decoded);
             progress -= size;
-            printf("%s - %f%% (%lu + %lu - %lu / %lu)\n", decoded, (100.0 * progress) / solver_instance->n_hidden, total, branch_nodes[i].node->total, size, beta);
+            printf("%s - %f%% (%lu + %lu - %lu / %lu, %lu)\n", decoded, (100.0 * progress) / solver_instance->n_hidden, total, branch_nodes[i].node->total, size, beta, n_test);
         }
 
         total += branch_nodes[i].node->total - size;
@@ -158,7 +234,7 @@ WordleNode *_optimize(const WordleSolverInstance *solver_instance, size_t beta)
     {
         // copy result as recursive calls change the ordering
         tuple test_ordering[SEARCH_DEPTH];
-        for (size_t i = 0; i < SEARCH_DEPTH; i++)
+        for (size_t i = 0; i < n_test && i < SEARCH_DEPTH; i++)
         {
             test_ordering[i].index = solver_instance->test_vector[i].index;
             test_ordering[i].value = solver_instance->test_vector[i].value;
