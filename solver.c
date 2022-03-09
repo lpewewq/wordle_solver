@@ -263,12 +263,15 @@ WordleNode *optimize(const WordleSolverInstance *solver_instance, size_t beta)
 {
     WordleNode *node;
 
-    hasmap_key_t *key = get_key(solver_instance);
-
-    node = solver_hashmap_get(key);
-    if (node != NULL)
+    hasmap_key_t *key = NULL;
+    if (!solver_instance->wordle_instance->hard_mode)
     {
-        return node;
+        key = get_key(solver_instance);
+        node = solver_hashmap_get(key);
+        if (node != NULL)
+        {
+            return node;
+        }
     }
 
     clock_t start = clock();
@@ -305,10 +308,13 @@ WordleNode *optimize(const WordleSolverInstance *solver_instance, size_t beta)
                 }
             }
         }
-        node->key = key;
-        solver_hashmap_put(key, node);
+        if (!solver_instance->wordle_instance->hard_mode)
+        {
+            node->key = key;
+            solver_hashmap_put(key, node);
+        }
     }
-    else
+    else if (!solver_instance->wordle_instance->hard_mode)
     {
         free(key);
     }
@@ -338,9 +344,15 @@ void optimize_decision_tree(const WordleInstance *wordle_instance, char *file_na
         .score_cache = (const uint8_t **)populate_score_cache(wordle_instance),
         .depth = 0,
     };
-    solver_hashmap_init();
+    if (!wordle_instance->hard_mode)
+    {
+        solver_hashmap_init();
+    }
     WordleNode *decision_tree = optimize(&solver_instance, UINTMAX_MAX);
     save_node(file_name, wordle_instance, decision_tree);
-    solver_hashmap_cleanup();
+    if (!wordle_instance->hard_mode)
+    {
+        solver_hashmap_cleanup();
+    }
     free(solver_instance.score_cache);
 }
