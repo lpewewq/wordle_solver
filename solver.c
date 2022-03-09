@@ -123,10 +123,11 @@ WordleNode *_optimize(const WordleSolverInstance *solver_instance, size_t beta)
         .hidden_indicies = hidden_indicies,
     };
 
-    if (n_hidden == 0)
+    // max recursion depth or beta too small (smallest tree needs at least 2n-1 total tries)
+    if (n_hidden == 0 || solver_instance->depth >= 10 || beta <= (2 * n_hidden - 1))
     {
-        node->total = 0;
-        return node;
+        free(node);
+        return NULL;
     }
     if (n_hidden == 1)
     {
@@ -134,12 +135,6 @@ WordleNode *_optimize(const WordleSolverInstance *solver_instance, size_t beta)
         node->total = 1;
         node->num_branches = 0;
         return node;
-    }
-    if (solver_instance->depth >= 10 || beta <= (2 * n_hidden - 1))
-    {
-        // max recursion depth or beta too small (smallest tree needs at least 2n-1 total tries)
-        free(node);
-        return NULL;
     }
 
     if (n_hidden == 2)

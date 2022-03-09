@@ -7,6 +7,7 @@ void _save_node(FILE *fp, const WordleInstance *wordle_instance, const WordleNod
     if (node == NULL)
     {
         fprintf(fp, "null\n");
+        return;
     }
     fprintf(fp, "{\n");
     fprintf(fp, "\"n_hidden\": %lu,\n", node->n_hidden);
@@ -56,7 +57,7 @@ void save_node(const char *file_name, const WordleInstance *wordle_instance, con
     fp = fopen(file_name, "w");
     if (fp == NULL)
     {
-        printf("Could not open file!");
+        printf("Could not open file!\n");
         exit(-1);
         return;
     }

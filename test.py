@@ -59,6 +59,11 @@ def test(n_hidden, n_test):
 
     with open(result_file, "r") as f:
         result = json.load(f)
+
+    if n_hidden == 0:
+        assert result is None
+        return
+
     assert result["n_hidden"] == n_hidden
     assert result["n_test"] == n_test
 
@@ -128,7 +133,10 @@ def test(n_hidden, n_test):
         expected_results = json.load(f)
     if key in expected_results:
         assert expected_results[key] == result["total"]
-    return key, result["total"]
+    else:
+        expected_results[key] = total
+        with open("expected_results.json", "w") as f:
+            json.dump(expected_results, f, indent=4, sort_keys=True)
 
 
 if __name__ == "__main__":
@@ -141,10 +149,4 @@ if __name__ == "__main__":
 
     code = os.system(f"make clean && make release")
     assert code == 0
-    key, total = test(n_hidden, n_test)
-
-    with open("expected_results.json", "r") as f:
-        expected_results = json.load(f)
-    expected_results[key] = total
-    with open("expected_results.json", "w") as f:
-        json.dump(expected_results, f, indent=4, sort_keys=True)
+    test(n_hidden, n_test)
