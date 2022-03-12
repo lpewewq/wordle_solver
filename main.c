@@ -9,19 +9,19 @@ int main(int argc, char *argv[])
     char *file_name = "result.json";
     if (argc > 1)
     {
-        n_hidden = strtol(argv[1], NULL, 0);
+        hard_mode = strtol(argv[1], NULL, 0) == 1;
     }
     if (argc > 2)
     {
-        n_test = strtol(argv[2], NULL, 0);
+        n_hidden = strtol(argv[2], NULL, 0);
     }
     if (argc > 3)
     {
-        file_name = argv[3];
+        n_test = strtol(argv[3], NULL, 0);
     }
     if (argc > 4)
     {
-        hard_mode = true;
+        file_name = argv[4];
     }
     WordleInstance wordle_instance = {
         .n_hidden = n_hidden,

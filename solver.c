@@ -4,9 +4,9 @@
 #include <stdio.h>
 #include <time.h>
 
-#define LOG_DEPTH 0
-#define SEARCH_DEPTH 44 // 44 & 0.946 -> salet in 7920 total
-#define SEARCH_ENTROPY_DEPTH 0.946
+#define LOG_DEPTH 1
+#define SEARCH_DEPTH 50
+#define SEARCH_ENTROPY_DEPTH 0.75
 #define PADDING(depth)                     \
     {                                      \
         for (size_t i = 0; i < depth; i++) \

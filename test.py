@@ -2,6 +2,7 @@ import sys
 import os
 import json
 import words
+from multiset import Multiset
 
 INF = 18446744073709551615
 
@@ -39,7 +40,7 @@ def score(test_word: str, hidden_word: str) -> int:
     return result
 
 
-def test(n_hidden, n_test):
+def test(n_hidden, n_test, hard_mode):
     assert 0 <= n_hidden <= words.N_HIDDEN
     assert 0 <= n_test <= words.N_TEST
     assert n_hidden <= n_test
@@ -53,8 +54,11 @@ def test(n_hidden, n_test):
     n_test = len(test_words)
     print(f"test n_hidden={n_hidden} n_test={n_test}")
 
-    result_file = f"result_{n_hidden}_{n_test}.json"
-    code = os.system(f"./release {n_hidden} {n_test} {result_file}")
+    result_file = f"result_{n_hidden}_{n_test}_{hard_mode}.json"
+    call = f"./release {int(hard_mode)} {n_hidden} {n_test} {result_file}"
+    if hard_mode:
+        call += " hard"
+    code = os.system(call)
     assert code == 0, f"Solver return code {code}"
 
     with open(result_file, "r") as f:
@@ -67,7 +71,7 @@ def test(n_hidden, n_test):
     assert result["n_hidden"] == n_hidden
     assert result["n_test"] == n_test
 
-    def validate_node(node, depth):
+    def validate_node(node, depth, validation_test_words):
         assert node is not None
         n_hidden = node["n_hidden"]
         guess = node["guess"]
@@ -89,7 +93,7 @@ def test(n_hidden, n_test):
 
         assert total > 0
         assert guess is not None
-        assert guess in test_words
+        assert guess in validation_test_words
 
         if branches is None:
             assert guess in hidden_words
@@ -103,14 +107,23 @@ def test(n_hidden, n_test):
         sub_best_case = 1 if guess in hidden_words else INF
         for key, item in branches.items():
             assert key not in ["🟨🟩🟩🟩🟩", "🟩🟨🟩🟩🟩", "🟩🟩🟨🟩🟩", "🟩🟩🟩🟨🟩", "🟩🟩🟩🟩🟨", "🟩🟩🟩🟩🟩"]
-            validate_node(item, depth + 1)
+            sub_test_words = validation_test_words
+            if hard_mode:
+                exact_match = [(i, guess[i]) for i in range(5) if key[i] == "🟩"]
+                include_match = Multiset(guess[i] for i in range(5) if key[i] != "⬛")
+                sub_test_words = [
+                    test_word
+                    for test_word in sub_test_words
+                    if all(test_word[i] == c for i, c in exact_match) and include_match <= Multiset(test_word)
+                ]
+            validate_node(item, depth + 1, sub_test_words)
             sub_worst_case = max(sub_worst_case, 1 + item["worst_case"])
             sub_best_case = min(sub_best_case, 1 + item["best_case"])
         assert worst_case == sub_worst_case
         assert best_case == sub_best_case
         assert best_case <= average_case <= worst_case
 
-    validate_node(result, 0)
+    validate_node(result, 0, test_words)
 
     def play(hidden_word, node):
         guess = node["guess"]
@@ -128,25 +141,18 @@ def test(n_hidden, n_test):
     if n_hidden > 0:
         assert (total / n_hidden - result["average_case"]) <= 1e-4
 
-    key = f"{n_hidden:0>5}, {n_test:0>5}"
-    with open("expected_results.json", "r") as f:
-        expected_results = json.load(f)
-    if key in expected_results:
-        assert expected_results[key] == result["total"]
-    else:
-        expected_results[key] = total
-        with open("expected_results.json", "w") as f:
-            json.dump(expected_results, f, indent=4, sort_keys=True)
-
 
 if __name__ == "__main__":
     n_hidden = words.N_HIDDEN
     n_test = words.N_TEST
+    hard_mode = False
     if len(sys.argv) > 1:
-        n_hidden = int(sys.argv[1])
+        hard_mode = sys.argv[1] == "1"
     if len(sys.argv) > 2:
-        n_test = int(sys.argv[2])
+        n_hidden = int(sys.argv[2])
+    if len(sys.argv) > 3:
+        n_test = int(sys.argv[3])
 
     code = os.system(f"make clean && make release")
     assert code == 0
-    test(n_hidden, n_test)
+    test(n_hidden, n_test, hard_mode)
